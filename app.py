@@ -1,7 +1,6 @@
 from flask import Flask, request, render_template_string, send_file, jsonify
 import os
 import uuid
-from werkzeug.utils import secure_filename
 from xml.etree import ElementTree as ET
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
@@ -16,7 +15,7 @@ app.config['PDF_ARQ'] = 'pdfs'
 os.makedirs(app.config['UPLOAD_ARQ'], exist_ok=True)
 os.makedirs(app.config['PDF_ARQ'], exist_ok=True)
 
-# HTML dessa desgraça
+#HTML 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -35,9 +34,13 @@ HTML_TEMPLATE = """
         input[type="file"] { display: none; }
         .upload-btn { background: #667eea; color: white; padding: 12px 30px; border: none; border-radius: 25px; font-size: 16px; cursor: pointer; transition: all 0.3s; }
         .upload-btn:hover { background: #5a67d8; transform: translateY(-2px); }
-        .download-btn { position: fixed; top: 20px; left: 20px; background: #48bb78; color: white; padding: 12px 20px; border: none; border-radius: 25px; font-size: 14px; cursor: pointer; box-shadow: 0 4px 15px rgba(72,187,120,0.4); transition: all 0.3s; z-index: 1000; }
-        .download-btn:hover { background: #38a169; transform: translateY(-2px); }
-        .download-btn.hidden { display: none; }
+        /*Botoões*/
+        .download-btn { position: fixed; top: 20px; left: 20px; background: #667eea; color: white; padding: 12px 20px; border: none; border-radius: 25px; font-size: 14px; cursor: pointer; box-shadow: 0 4px 15px rgba(72,187,120,0.4); transition: all 0.3s; z-index: 1000; }
+        .back-btn { position: fixed; top: 20px; right: 20px; background: #667eea; color: white; padding: 12px 20px; border: none; border-radius: 25px; font-size: 14px; cursor: pointer; box-shadow: 0 4px 15px rgba(102,126,234,0.4); transition: all 0.3s; z-index: 1000; }
+        .download-btn:hover { transform: translateY(-2px); opacity: 0.9; }
+        .back-btn:hover { transform: translateY(-2px); opacity: 0.9; }
+        .hidden { display: none; }
+        /*Visual*/
         .results { padding: 30px; }
         .stats { display: flex; gap: 20px; margin-bottom: 30px; flex-wrap: wrap; }
         .stat-card { background: #f8f9ff; padding: 20px; border-radius: 10px; flex: 1; min-width: 150px; text-align: center; border-left: 5px solid #667eea; }
@@ -49,16 +52,11 @@ HTML_TEMPLATE = """
         tr:hover { background: #e8ecff; }
         .loading { text-align: center; padding: 40px; font-size: 18px; color: #666; }
         .error { background: #fed7d7; color: #c53030; padding: 20px; border-radius: 10px; margin: 20px; border-left: 5px solid #e53e3e; }
-        @media (max-width: 768px) { 
-            .stats { flex-direction: column; } 
-            table { font-size: 14px; } 
-            th, td { padding: 10px 8px; } 
-            .container { margin: 10px; }
-        }
     </style>
 </head>
 <body>
     <button id="downloadBtn" class="download-btn hidden" onclick="downloadPDF()">📥 Download PDF</button>
+    <button id="backBtn" class="back-btn hidden" onclick="voltarUpload()">⬅️ Novo Upload</button>
     
     <div class="container">
         <div class="header">
@@ -74,9 +72,7 @@ HTML_TEMPLATE = """
             <p style="margin-top: 15px; color: #666;">ou arraste o arquivo aqui</p>
         </div>
         
-        <div id="results" class="results" style="display: none;">
-            <!-- Conteúdo será inserido via JavaScript -->
-        </div>
+        <div id="results" class="results" style="display: none;"></div>
     </div>
 
     <script>
@@ -84,11 +80,11 @@ HTML_TEMPLATE = """
         const fileInput = document.getElementById('xmlFile');
         const resultsDiv = document.getElementById('results');
         const downloadBtn = document.getElementById('downloadBtn');
+        const backBtn = document.getElementById('backBtn');
 
         ['dragover', 'dragenter'].forEach(event => {
             uploadArea.addEventListener(event, (e) => {
                 e.preventDefault();
-                e.stopPropagation();
                 uploadArea.classList.add('dragover');
             });
         });
@@ -102,6 +98,7 @@ HTML_TEMPLATE = """
         });
 
         uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
             const files = e.dataTransfer.files;
             if (files.length > 0) {
                 fileInput.files = files;
@@ -122,9 +119,9 @@ HTML_TEMPLATE = """
             resultsDiv.innerHTML = '<div class="loading">⏳ Processando arquivo...</div>';
             resultsDiv.style.display = 'block';
 
-            fetch('/upload', {
-                method: 'POST',
-                body: formData
+            fetch('/upload', { 
+                method: 'POST', 
+                body: formData 
             })
             .then(response => response.json())
             .then(data => {
@@ -132,6 +129,7 @@ HTML_TEMPLATE = """
                     displayResults(data.produtos, data.total);
                     downloadBtn.dataset.nomearquivo = data.nomearquivo;
                     downloadBtn.classList.remove('hidden');
+                    backBtn.classList.remove('hidden');
                 } else {
                     resultsDiv.innerHTML = `<div class="error">❌ Erro: ${data.error}</div>`;
                     uploadArea.style.display = 'block';
@@ -140,7 +138,6 @@ HTML_TEMPLATE = """
             .catch(error => {
                 resultsDiv.innerHTML = '<div class="error">❌ Erro ao processar arquivo</div>';
                 uploadArea.style.display = 'block';
-                console.error('Erro:', error);
             });
         }
 
@@ -148,7 +145,7 @@ HTML_TEMPLATE = """
             let html = `
                 <div class="stats">
                     <div class="stat-card">
-                        <div class="stat-number">${total.toLocaleString()}</div>
+                        <div class="stat-number">${total}</div>
                         <div>Total de Produtos</div>
                     </div>
                 </div>
@@ -166,12 +163,11 @@ HTML_TEMPLATE = """
                     </thead>
                     <tbody>
             `;
-            
-            produtos.forEach((prod, index) => {
+            produtos.forEach(prod => {
                 html += `
                     <tr>
                         <td>${prod.cProd}</td>
-                        <td>${prod.xProd.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</td>
+                        <td>${prod.xProd}</td>
                         <td>R$ ${parseFloat(prod.vProd).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
                         <td>${parseFloat(prod.qCom).toLocaleString()}</td>
                         <td>R$ ${parseFloat(prod.vUnCom).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
@@ -180,14 +176,21 @@ HTML_TEMPLATE = """
                     </tr>
                 `;
             });
-            
             html += '</tbody></table>';
             resultsDiv.innerHTML = html;
         }
 
+        function voltarUpload() {
+            resultsDiv.style.display = 'none';
+            downloadBtn.classList.add('hidden');
+            backBtn.classList.add('hidden');
+            uploadArea.style.display = 'block';
+            fileInput.value = '';
+        }
+
         function downloadPDF() {
-            const nomearquivo = downloadBtn.dataset.nomearquivo;
-            window.location.href = `/download/${nomearquivo}`;
+            window.location.href = `/download/${downloadBtn.dataset.nomearquivo}`;
+   
         }
     </script>
 </body>
@@ -197,27 +200,27 @@ HTML_TEMPLATE = """
 EXTENSAO = {'xml'}
 
 def arquivo(nomearquivo):
-    return '.' in nomearquivo and \
-           nomearquivo.rsplit('.', 1)[1].lower() in EXTENSAO #INFERNO NA TERRA COMPREENDER ISSO
+    return '.' in nomearquivo and nomearquivo.rsplit('.', 1)[1].lower() in EXTENSAO     # INFERNO NA TERRA COMPREENDER ISSO
 
 def parse_nfe_products(xml_conteudo): #lê e retorna os produtos na lista
-    try:
-        root = ET.fromstring(xml_conteudo.encode('utf-8'))
-        portfis = {'nfe': 'http://www.portalfiscal.inf.br/nfe'}
+    try: #achatag
+        root = ET.fromstring(xml_conteudo)
+        ns = {'nfe': 'http://www.portalfiscal.inf.br/nfe'}
         produtos = []
-        dets = root.findall('.//nfe:det', portfis)
+        dets = root.findall('.//nfe:det', ns)
         
         for det in dets:
-            prod = det.find('nfe:prod', portfis)
+            prod = det.find('nfe:prod', ns)
             if prod is not None:
+                #achou
                 product = {
-                    'cProd': prod.get('cProd', 'N/A'),
-                    'xProd': prod.get('xProd', 'N/A')[:100],  # Limita tamanho
-                    'vProd': prod.get('vProd', '0.00'),
-                    'qCom': prod.get('qCom', '0'),
-                    'vUnCom': prod.get('vUnCom', '0.00'),
-                    'NCM': prod.get('NCM', 'N/A'),
-                    'cEAN': prod.get('cEAN', 'N/A')
+                    'cProd': prod.findtext('nfe:cProd', default='N/A', namespaces=ns),
+                    'xProd': prod.findtext('nfe:xProd', default='N/A', namespaces=ns)[:100],
+                    'vProd': prod.findtext('nfe:vProd', default='0.00', namespaces=ns),
+                    'qCom': prod.findtext('nfe:qCom', default='0', namespaces=ns),
+                    'vUnCom': prod.findtext('nfe:vUnCom', default='0.00', namespaces=ns),
+                    'NCM': prod.findtext('nfe:NCM', default='N/A', namespaces=ns),
+                    'cEAN': prod.findtext('nfe:cEAN', default='N/A', namespaces=ns)
                 }
                 produtos.append(product)
         return produtos
@@ -226,8 +229,8 @@ def parse_nfe_products(xml_conteudo): #lê e retorna os produtos na lista
         return []
 
 def create_pdf(produtos, nomearquivo): #cria o pdf
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4)
+    pdf_cam = os.path.join(app.config['PDF_ARQ'], f"{nomearquivo}.pdf")
+    doc = SimpleDocTemplate(pdf_cam, pagesize=A4)
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
         'Title', parent=styles['Heading1'], 
@@ -235,48 +238,32 @@ def create_pdf(produtos, nomearquivo): #cria o pdf
     )
     
     story = [Paragraph("Lista de Produtos da NF-e", title_style), Spacer(1, 20)]
+    headers = ['Cód.', 'Descrição', 'Valor Total', 'Qtd.', 'Unit.', 'NCM', 'EAN']
     
-    headers = ['Cód. Prod.', 'Descrição', 'Valor Total', 'Qtd.', 'Valor Unit.', 'NCM', 'EAN'] #cria as lacuna
-    chunk_size = 50
+    data = [headers]
+    for prod in produtos:
+        data.append([
+            prod['cProd'], 
+            prod['xProd'][:40], # Corta pra não quebrar a tabela
+            f"R$ {prod['vProd']}", 
+            prod['qCom'], 
+            f"R$ {prod['vUnCom'][:4]}", #é para seguir a regra 00.00 - PRECISA REVIZAR
+            prod['NCM'], 
+            prod['cEAN']
+        ])
     
-    for i in range(0, len(produtos), chunk_size): #len dos produtos e eu esqueci o resto aí, acho que é das colunas
-        chunk = produtos[i:i + chunk_size]
-        data = [headers]
-        
-        for prod in chunk:
-            data.append([
-                prod['cProd'],
-                prod['xProd'][:40] + '...' if len(prod['xProd']) > 40 else prod['xProd'],
-                f"R$ {prod['vProd']}",
-                prod['qCom'],
-                f"R$ {prod['vUnCom']}",
-                prod['NCM'],
-                prod['cEAN']
-            ])
-        
-        table = Table(data, colWidths=[0.6*inch, 2.5*inch, 1*inch, 0.6*inch, 1*inch, 0.8*inch, 1*inch]) 
-        #tabela pra colocar lacuna por coluna
-        table.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), colors.grey),
-            ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
-            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0,0), (-1,0), 10),
-            ('FONTSIZE', (0,1), (-1,-1), 9),
-            ('GRID', (0,0), (-1,-1), 1, colors.black),
-            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.lightgrey]),
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE')
-        ]))
-        story.append(table)
-        if i + chunk_size < len(produtos):
-            story.append(Spacer(1, 0.5*inch))
-    
+    table = Table(data, colWidths=[0.7*inch, 2.3*inch, 1*inch, 0.6*inch, 1*inch, 0.7*inch, 1*inch]) 
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.grey),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+        ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+        ('GRID', (0,0), (-1,-1), 1, colors.black),
+        ('FONTSIZE', (0,0), (-1,0), 10),
+        ('FONTSIZE', (0,1), (-1,-1), 8),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.lightgrey])
+    ]))
+    story.append(table)
     doc.build(story)
-    buffer.seek(0)
-    
-    pdf_cam = os.path.join(app.config['PDF_ARQ'], f"{nomearquivo}.pdf") #retorna pra fazer o PF
-    with open(pdf_cam, 'wb') as f:
-        f.write(buffer.getvalue())
     return pdf_cam
 
 @app.route('/')
@@ -288,42 +275,37 @@ def upload_file():
     try:
         if 'xml_file' not in request.files: #não enviado
             return jsonify({'success': False, 'error': 'Nenhum arquivo enviado'})
-
+        
         file = request.files['xml_file']
-        if file.nomearquivo == '': #não selecionado
+        if file.filename == '': #não selecionado
             return jsonify({'success': False, 'error': 'Nenhum arquivo selecionado'})
-
-        if file and arquivo(file.nomearquivo): #colocad 100%
-            nomearquivo = str(uuid.uuid4()) #que poressa
-            xml_path = os.path.join(app.config['UPLOAD_ARQ'], f"{nomearquivo}.xml")
+        
+        if file and arquivo(file.filename): #colocad 100$
+            nome_unico = str(uuid.uuid4()) #
+            xml_path = os.path.join(app.config['UPLOAD_ARQ'], f"{nome_unico}.xml")
             file.save(xml_path)
             
-            with open(xml_path, 'r', encoding='utf-8', errors='ignore') as f:
-                xml_conteudo = f.read()
+            with open(xml_path, 'rb') as f:
+                produtos = parse_nfe_products(f.read())
             
-            produtos = parse_nfe_products(xml_conteudo)
-            pdf_cam = create_pdf(produtos, nomearquivo)
-            
-            # 
+            if not produtos: 
+                return jsonify({'success': False, 'error': 'XML Vazio ou Sem produtos'})
+    
+            create_pdf(produtos, nome_unico)
             os.remove(xml_path)
             
-            return jsonify({
-                'success': True,
-                'produtos': produtos,
-                'total': len(produtos),
-                'nomearquivo': nomearquivo
-            })
-        return jsonify({'success': False, 'error': 'Arquivo XML inválido'})
+            return jsonify({'success': True, 'produtos': produtos, 'total': len(produtos), 'nomearquivo': nome_unico})
+        return jsonify({'success': False, 'error': 'Inválido'})
     except Exception as e:
-        return jsonify({'success': False, 'error': f'Erro: {str(e)}'})
+        return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/download/<nomearquivo>') #Não achou
 def download_pdf(nomearquivo): #Deu ruim no PDF
     pdf_cam = os.path.join(app.config['PDF_ARQ'], f"{nomearquivo}.pdf")
     if os.path.exists(pdf_cam):
-        return send_file(pdf_cam, anexo=True, nom_down='produtos_nfe.pdf')
-    return 'Arquivo PDF não encontrado', 404
+        return send_file(pdf_cam, as_attachment=True, download_name='produtos_nfe.pdf')
+    return '404', 404
 
 if __name__ == '__main__':
     print("Servidor rodando em http://localhost:5000") #SEMPRE ESQUECIA O LOCALHOST
-    app.run(debug=True, host='0.0.0.0', port=5000) #deixa o debug ativado nessa desgraça
+    app.run(debug=True, host='0.0.0.0', port=5000) #deixa o debug ativado
