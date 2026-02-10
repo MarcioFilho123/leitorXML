@@ -5,9 +5,8 @@ from xml.etree import ElementTree as ET
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch
+from reportlab.lib.units import cm
 from reportlab.lib import colors
-import io
 
 app = Flask(__name__)
 app.config['UPLOAD_ARQ'] = 'uploads'
@@ -30,10 +29,9 @@ def parse_nfe_products(xml_conteudo): #lê e retorna os produtos na lista
         for det in dets:
             prod = det.find('nfe:prod', ns)
             if prod is not None:
-                #achou
                 product = {
                     'cProd': prod.findtext('nfe:cProd', default='N/A', namespaces=ns),
-                    'xProd': prod.findtext('nfe:xProd', default='N/A', namespaces=ns)[:100],
+                    'xProd': prod.findtext('nfe:xProd', default='N/A', namespaces=ns),
                     'vProd': prod.findtext('nfe:vProd', default='0.00', namespaces=ns),
                     'qCom': prod.findtext('nfe:qCom', default='0', namespaces=ns),
                     'vUnCom': prod.findtext('nfe:vUnCom', default='0.00', namespaces=ns),
@@ -48,37 +46,37 @@ def parse_nfe_products(xml_conteudo): #lê e retorna os produtos na lista
 
 def create_pdf(produtos, nomearquivo): #cria o pdf
     pdf_cam = os.path.join(app.config['PDF_ARQ'], f"{nomearquivo}.pdf")
-    doc = SimpleDocTemplate(pdf_cam, pagesize=A4)
+    doc = SimpleDocTemplate(pdf_cam, pagesize=A4, rightMargin=1*cm, leftMargin=1*cm, topMargin=1*cm, bottomMargin=1*cm)
     styles = getSampleStyleSheet()
-    title_style = ParagraphStyle(
-        'Title', parent=styles['Heading1'], 
-        fontSize=16, alignment=1, spaceAfter=30
-    )
     
-    story = [Paragraph("Lista de Produtos da NF-e", title_style), Spacer(1, 20)]
-    headers = ['Cód.', 'Descrição', 'Valor Total', 'Qtd.', 'Unit.', 'NCM', 'EAN']
+    style_celula = ParagraphStyle('style_celula', fontSize=8, leading=10)
+    style_header = ParagraphStyle('style_header', fontSize=9, textColor=colors.whitesmoke, fontName='Helvetica-Bold', alignment=1)
     
-    data = [headers]
-    for prod in produtos:
+    story = [Paragraph("Lista de Produtos da NF-e", styles['Title']), Spacer(1, 20)]
+    
+    data = [[
+        Paragraph("Cód.", style_header), Paragraph("Descrição", style_header), 
+        Paragraph("Total", style_header), Paragraph("Qtd.", style_header), 
+        Paragraph("Unit.", style_header), Paragraph("NCM", style_header), Paragraph("EAN", style_header)
+    ]]
+    
+    for p in produtos:
         data.append([
-            prod['cProd'], 
-            prod['xProd'][:40], # Corta pra não quebrar a tabela
-            f"R$ {prod['vProd']}", 
-            prod['qCom'], 
-            f"R$ {prod['vUnCom'][:4]}", #é para seguir a regra 00.00 - PRECISA REVIZAR
-            prod['NCM'], 
-            prod['cEAN']
+            Paragraph(p['cProd'], style_celula),
+            Paragraph(p['xProd'], style_celula), 
+            Paragraph(f"R$ {float(p['vProd']):.2f}", style_celula),
+            Paragraph(p['qCom'], style_celula),
+            Paragraph(f"R$ {float(p['vUnCom']):.2f}", style_celula),
+            Paragraph(p['NCM'], style_celula),
+            Paragraph(p['cEAN'], style_celula)
         ])
     
-    table = Table(data, colWidths=[0.7*inch, 2.3*inch, 1*inch, 0.6*inch, 1*inch, 0.7*inch, 1*inch]) 
+    table = Table(data, colWidths=[1.8*cm, 6.5*cm, 2.2*cm, 1.2*cm, 2.2*cm, 1.8*cm, 2.8*cm]) 
     table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.grey),
-        ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
-        ('ALIGN', (0,0), (-1,-1), 'LEFT'),
-        ('GRID', (0,0), (-1,-1), 1, colors.black),
-        ('FONTSIZE', (0,0), (-1,0), 10),
-        ('FONTSIZE', (0,1), (-1,-1), 8),
-        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.lightgrey])
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#667eea")),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor("#f8f9ff")])
     ]))
     story.append(table)
     doc.build(story)
@@ -88,18 +86,12 @@ def create_pdf(produtos, nomearquivo): #cria o pdf
 def index():
     return render_template('index.html')
 
-@app.route('/upload', methods=['POST']) #Não é HTML 
+@app.route('/upload', methods=['POST']) #Não é HTML
 def upload_file():
     try:
-        if 'xml_file' not in request.files: #não enviado
-            return jsonify({'success': False, 'error': 'Nenhum arquivo enviado'})
-        
-        file = request.files['xml_file']
-        if file.filename == '': #não selecionado
-            return jsonify({'success': False, 'error': 'Nenhum arquivo selecionado'})
-        
+        file = request.files.get('xml_file')
         if file and arquivo(file.filename): #colocad 100$
-            nome_unico = str(uuid.uuid4()) #
+            nome_unico = str(uuid.uuid4())
             xml_path = os.path.join(app.config['UPLOAD_ARQ'], f"{nome_unico}.xml")
             file.save(xml_path)
             
@@ -125,5 +117,4 @@ def download_pdf(nomearquivo): #Deu ruim no PDF
     return '404', 404
 
 if __name__ == '__main__':
-    print("Servidor rodando em http://localhost:5000") #SEMPRE ESQUECIA O LOCALHOST
-    app.run(debug=True, host='0.0.0.0', port=5000) #deixa o debug ativado
+    app.run(debug=True) #deixa o debug ativado
