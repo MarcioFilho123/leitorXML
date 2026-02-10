@@ -1,5 +1,4 @@
-No caso ainda está em Beta, não está funcionando 100%
-
-
-Para instalar precisa dar os seguintes comandos:
+Leitor de XML que retorna Código, Descrição, Valor Total, Quantidade, Unitário(Unidade), NCM e EAN dos produtos do XML. Para instalar precisa dar o seguinte comando:
 pip install flask reportlab
+
+Estou aberto a sugestões de como melhorar o sistema
