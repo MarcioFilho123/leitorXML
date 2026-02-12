@@ -4,27 +4,33 @@
     <meta charset="UTF-8">
     <title>Lista de Produtos NF-e</title>
     <style>
+        :root { --bg: #f5f5f5; --card: white; --text: #333; --border: #eee; }
+        body.dark-mode { --bg: #1a202c; --card: #2d3748; --text: #e2e8f0; --border: #4a5568; }
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', sans-serif; background: #f5f5f5; padding: 20px; }
-        .container { max-width: 1200px; margin: 0 auto; background: white; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); overflow: hidden; }
-        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; }
-        .upload-area { border: 3px dashed #ddd; border-radius: 10px; padding: 40px; text-align: center; margin: 30px; }
-        .new-btn { background: #667eea; color: white; padding: 12px 30px; border: none; border-radius: 25px; cursor: pointer; transition: 0.3s; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); padding: 20px; transition: 0.3s; }
+        .container { max-width: 1200px; margin: 0 auto; background: var(--card); border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); overflow: hidden; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; position: relative; }
+        .dark-btn { position: absolute; right: 20px; top: 30px; background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 15px; border-radius: 20px; cursor: pointer; } /*botão modo*/
+        .upload-area { border: 3px dashed #ddd; border-radius: 10px; padding: 40px; text-align: center; margin: 30px; } /*upload*/
+        .new-btn { background: #667eea; color: white; padding: 12px 30px; border: none; border-radius: 25px; cursor: pointer; transition: 0.3s; font-weight: bold; }
         .new-btn:hover { background: #5a67d8; }
-        .action-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .results { padding: 30px; }
+        .action-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding: 0 30px; }
+        .results { padding: 30px; } /*resultado*/
         table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
         th { background: #667eea; color: white; padding: 12px; text-align: left; }
-        td { padding: 10px; border-bottom: 1px solid #eee; }
+        td { padding: 10px; border-bottom: 1px solid var(--border); color: var(--text); }
+        .summary-box { text-align: center; background: rgba(102, 126, 234, 0.1); padding: 10px 20px; border-radius: 15px; border: 1px solid #667eea; } /**/
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>📋 Lista de Produtos NF-e</h1>
+            <button class="dark-btn" onclick="toggleDarkMode()">🌓 Alternar Tema</button>
         </div>
-        <div class="upload-area" id="uploadArea">
-            <input type="file" id="xmlFile" accept=".xml" style="display:none" onchange="uploadFile()"/>
+        <div class="upload-area" id="uploadArea"> 
+            <input type="file" id="xmlFile" accept=".xml" style="display:none" onchange="uploadFile()"/> 
             <button class="new-btn" onclick="document.getElementById('xmlFile').click()">📁 Escolher XML</button>
         </div>
         <div id="results" class="results" style="display: none;"></div>
@@ -33,16 +39,14 @@
     <script>
         const uploadArea = document.getElementById('uploadArea');
         const resultsDiv = document.getElementById('results');
-        
-        // VARIÁVEL GLOBAL PARA O NOME DO ARQUIVO
         let nomeDoArquivoGlobal = ""; 
+        let produtosAtuais = []; /*guarda os dados pro Excel e pro calculo*/
 
-        function resetPage() { /*Reseta a página*/
-            resultsDiv.style.display = 'none';
-            uploadArea.style.display = 'block';
-            document.getElementById('xmlFile').value = '';
-            nomeDoArquivoGlobal = "";
+        function toggleDarkMode() { /*muda de cor*/
+            document.body.classList.toggle('dark-mode');
+            localStorage.setItem('dark-mode', document.body.classList.contains('dark-mode'));
         }
+        if(localStorage.getItem('dark-mode') === 'true') document.body.classList.add('dark-mode');
 
         function uploadFile() { /*envia xml*/
             const fileInput = document.getElementById('xmlFile');
@@ -53,42 +57,57 @@
             formData.append('xml_file', file);
 
             uploadArea.style.display = 'none';
-            resultsDiv.innerHTML = 'Processando...';
+            resultsDiv.innerHTML = '<p style="text-align:center; padding: 20px;">Processando...</p>';
             resultsDiv.style.display = 'block';
 
             fetch('/upload', { method: 'POST', body: formData })
             .then(res => res.json())
             .then(data => {
+                fileInput.value = ''; /*Limpa para permitir re-seleção do mesmo arquivo */
                 if (data.success) {
-                    // GUARDA O NOME QUE VEIO DO PYTHON
                     nomeDoArquivoGlobal = data.nomearquivo; 
+                    produtosAtuais = data.produtos;
                     displayResults(data.produtos, data.total);
                 } else {
-                    resultsDiv.innerHTML = `Erro: ${data.error} <br><button onclick="resetPage()" class="new-btn">Voltar</button>`;
+                    resultsDiv.innerHTML = `Erro: ${data.error} <br><button onclick="location.reload()" class="new-btn">Voltar</button>`;
                 }
             })
             .catch(() => {
-                resultsDiv.innerHTML = `Erro ao processar. <br><button onclick="resetPage()" class="new-btn">Voltar</button>`;
+                resultsDiv.innerHTML = `Erro ao processar. <br><button onclick="location.reload()" class="new-btn">Voltar</button>`;
             });
         }
 
         function displayResults(products, total) {
+            /*total da nota*/
+            const valorTotalGeral = products.reduce((acc, p) => acc + parseFloat(p.vProd), 0);
+
             let html = `
             <div class="action-bar">
                 <button class="new-btn" onclick="document.getElementById('xmlFile').click()" style="background: #718096;" >
                     📁 Outro XML
                 </button>
-                <div style="font-weight: bold; color: #4a5568;">Total: ${total} produtos</div>
-                <button onclick="downloadPDF()" style="background: #48bb78; color: white; border: none; padding: 12px 30px; border-radius: 25px; cursor: pointer; font-weight: bold;">
-                    📥 Download PDF
-                </button>
+                
+                <div class="summary-box">
+                    <div style="font-size: 12px; color: #667eea; font-weight: bold;">TOTAL DA NOTA</div>
+                    <div style="font-size: 18px; font-weight: bold;">R$ ${valorTotalGeral.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+                    <div style="font-size: 11px;">(${total} itens)</div>
+                </div>
+
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="downloadPDF()" style="background: #e53e3e; color: white; border: none; padding: 12px 25px; border-radius: 25px; cursor: pointer; font-weight: bold;">
+                        📥 PDF
+                    </button>
+                    <button onclick="downloadExcel()" style="background: #2f855a; color: white; border: none; padding: 12px 25px; border-radius: 25px; cursor: pointer; font-weight: bold;">
+                        📊 Excel
+                    </button>
+                </div>
             </div>
             <table>
                 <thead>
                     <tr>
                         <th>Cód.</th>
                         <th>Descrição</th>
-                        <th>Total</th>
+                        <th>Total Item</th>
                         <th>Qtd.</th>
                     </tr>
                 </thead>
@@ -108,12 +127,23 @@
         }
 
         function downloadPDF() {
-            if (nomeDoArquivoGlobal) {
-                // REDIRECIONA PARA A ROTA DE DOWNLOAD DO FLASK
-                window.location.href = `/download/${nomeDoArquivoGlobal}`;
-            } else {
-                alert("Erro: Arquivo não encontrado.");
-            }
+            if (nomeDoArquivoGlobal) window.location.href = `/download/${nomeDoArquivoGlobal}`;
+        }
+
+        function downloadExcel() {
+            fetch('/excel', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ produtos: produtosAtuais })
+            })
+            .then(res => res.blob())
+            .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'produtos_nfe.xlsx';
+                a.click();
+            });
         }
     </script>
 </body>
